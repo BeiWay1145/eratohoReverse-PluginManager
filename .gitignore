@@ -9,3 +9,4 @@ sav/
 # 本地备份
 backup/
 *.bak
+release/
