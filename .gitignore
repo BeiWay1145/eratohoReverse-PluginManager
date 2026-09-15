@@ -9,6 +9,6 @@ sav/
 # 本地备份
 backup/
 *.bak
-release/
-# release 产物不入库（体积大，用 Release 页分发）
+
+# release 产物不入库（体积大，用 GitHub Release 页分发）
 release/
