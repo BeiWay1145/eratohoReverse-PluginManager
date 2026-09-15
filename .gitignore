@@ -10,3 +10,5 @@ sav/
 backup/
 *.bak
 release/
+# release 产物不入库（体积大，用 Release 页分发）
+release/
