@@ -118,8 +118,13 @@ def restore(ctx):
         shutil.rmtree(d, ignore_errors=True)
 
 
-def run(game, seconds=25):
-    """启动游戏、等待、强杀，返回 (ok, note)。"""
+def run(game, seconds=25, marker=None, max_wait=None):
+    """启动游戏并等待。
+
+    marker 非空时会**轮询等待标记出现**（而不是死等固定秒数）——Emuera 冷启动
+    耗时波动较大（实测同一份游戏 25s 有时够、有时不够），固定 sleep 会导致
+    「钩子已触发但日志还没写出来」的假阴性。出现标记即提前结束。
+    """
     exe = find_exe(game)
     if not exe:
         return False, "找不到 Emuera*.exe"
@@ -128,7 +133,19 @@ def run(game, seconds=25):
         os.remove(log)
 
     proc = subprocess.Popen([exe, "-Debug"], cwd=game)
-    time.sleep(seconds)
+
+    if marker:
+        deadline = time.time() + (max_wait or seconds)
+        while time.time() < deadline:
+            time.sleep(1.0)
+            if proc.poll() is not None:
+                break
+            txt = read_log(game)
+            if txt and marker in txt:
+                break
+        time.sleep(1.5)  # 让日志落盘完整
+    else:
+        time.sleep(seconds)
     try:
         proc.kill()
         proc.wait(timeout=10)

@@ -184,7 +184,11 @@ def handle(name, args):
         try:
             if with_probe:
                 ctx = C.inject_probe(game, events=tuple(events))
-            ok, note = C.run(game, seconds=secs)
+                ok, note = C.run(game, seconds=secs,
+                                 marker="ZZDRV_FIRED_",
+                                 max_wait=max(secs, 60))
+            else:
+                ok, note = C.run(game, seconds=secs)
         finally:
             if ctx:
                 C.restore(ctx)

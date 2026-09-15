@@ -96,8 +96,18 @@ PATCHES = [
         "ERB/TRAIN/EVENTCOMEND.ERB",
         "EVENTCOMEND 钩子（调教结束）",
         [
-            (r"(@EVENTCOMEND\r\n)",
-             "\\1;插件系统：EVENTCOMEND 事件钩子（已开启的插件在此时执行）\r\nCALL PLUGIN_HOOK(\"EVENTCOMEND\")\r\n"),
+            # ⚠️ 关键：绝不能插在 @EVENTCOMEND 与紧随其后的 #DIM 之间！
+            # Emuera 要求 #DIM 必须紧跟函数声明；中间插语句会让整块声明失效，
+            # 导致 500+ 条「变量未定义」连锁报错（本项目实际踩过）。
+            # 正确做法：插到函数头部 #DIM 声明块之后。
+            (r"(@EVENTCOMEND\r\n(?:;[^\r\n]*\r\n)*#DIM[^\r\n]*\r\n(?:;[^\r\n]*\r\n|#[^\r\n]*\r\n)*)",
+             "\\1\r\n;插件系统：EVENTCOMEND 事件钩子（已开启的插件在此时执行）\r\n"
+             ";注意：#DIM 必须紧跟函数声明，钩子不能插在 @EVENTCOMEND 与 #DIM 之间\r\n"
+             'CALL PLUGIN_HOOK("EVENTCOMEND")\r\n'),
+            # 兜底：函数头之后没有任何 #DIM（少见），直接跟在函数声明后
+            (r"(@EVENTCOMEND\r\n)(?!(?:;[^\r\n]*\r\n)*#DIM)",
+             "\\1;插件系统：EVENTCOMEND 事件钩子（已开启的插件在此时执行）\r\n"
+             'CALL PLUGIN_HOOK("EVENTCOMEND")\r\n'),
         ],
         'CALL PLUGIN_HOOK("EVENTCOMEND")',
     ),
