@@ -1,0 +1,17 @@
+﻿;══════════════════════════════════════════════════════════
+;插件管理器 头文件（与 PLUGIN_MANAGER.ERB 同名，Emuera 自动包含）
+;══════════════════════════════════════════════════════════
+;全局变量声明必须放在 .ERH 头文件中（.ERB 顶层不接受 #DIM 声明）
+;
+;插件注册表（全局字符串数组，容量32，从0号开始连续登记）
+;#DIMS PLUGIN_ID, 32
+;#DIMS PLUGIN_NAME, 32
+;#DIMS PLUGIN_DESC, 32
+;
+;※注册表内容在 @PLUGIN_INIT 中填充（见 PLUGIN_MANAGER.ERB）
+;══════════════════════════════════════════════════════════
+#DIMS PLUGIN_ID, 32
+#DIMS PLUGIN_NAME, 32
+#DIMS PLUGIN_DESC, 32
+;插件钩子分发用的临时函数名（全局字符串，供 TRYCALLFORM %PLUGIN_FUNC% 展开）
+#DIMS PLUGIN_FUNC

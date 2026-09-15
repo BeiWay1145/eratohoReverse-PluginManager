@@ -1,0 +1,171 @@
+﻿;══════════════════════════════════════════════════════════
+;插件管理器（PLUGIN MANAGER）
+;══════════════════════════════════════════════════════════
+;插件系统框架（plugin-dev 分支开发）
+;
+;【插件是什么】
+;  每个插件是一组独立的 ERB 脚本，放在 ERB/PLUGIN/<插件ID>/ 目录下，
+;  与游戏本体其他部分隔离。删除该目录即可卸载插件。
+;
+;【如何登记插件】
+;  在下方 @PLUGIN_INIT 的“插件注册表”中，按相同顺序各追加一项：
+;    PLUGIN_ID   ：插件ID（半角英文/数字，同时也是目录名与函数名前缀）
+;    PLUGIN_NAME ：插件显示名（配置菜单中显示）
+;    PLUGIN_DESC ：插件简介（配置菜单中显示）
+;  ※插件必须从序号0开始连续登记（不可跳过序号）
+;
+;【开关与持久化】
+;  - 配置菜单 [10] 插件管理 中可独立开启/关闭每个插件
+;  - 开关状态保存在 GLOBAL:100+插件序号（1=开启 0=关闭）
+;  - GLOBAL 由游戏启动时自动 LOADGLOBAL、结束时 SAVEGLOBAL，
+;    因此开关设置跨存档共享，无需额外保存代码
+;
+;【事件钩子】
+;  - 主流程在关键节点调用：CALL PLUGIN_HOOK("事件名")
+;  - 分发时对所有“已开启”的插件依次调用：@PLUGIN_<插件ID>_<事件名>
+;  - 插件未实现该事件的函数时自动跳过（TRYCALLFORM 不报错）
+;  - 现有钩子点：BOOT(游戏启动) / SHOP(商店菜单) / EVENTCOMEND(调教结束)
+;                / CHARAMAKE_MENU+CHARAMAKE_SELECT(角色菜单)
+;  - 开发指南见同目录 PLUGIN_DEV_GUIDE.md
+;══════════════════════════════════════════════════════════
+
+;──────────────
+;插件注册表（全局字符串数组，声明见 PLUGIN_MANAGER.ERH 头文件）
+;容量32，从0号开始连续登记
+;──────────────
+
+;══════════════════════════════════════════════════════════
+;插件注册表初始化
+;  在 @PLUGIN_MANAGER 与 @PLUGIN_HOOK 开头调用，填充注册表内容
+;  （每次调用都会重新赋值，因此可重复调用、无副作用）
+;══════════════════════════════════════════════════════════
+@PLUGIN_INIT
+;登记插件示例（取消注释并按顺序追加即可）：
+;注意：字符串数组赋值【必须无引号】（本体先例 LOCALS:0 = まだ柔らかい）。
+;带引号会存成带引号的字面量（如「"demo"」），导致函数名拼接失败
+PLUGIN_ID:0   = custom
+PLUGIN_NAME:0 = 角色制作增强
+PLUGIN_DESC:0 = 在角色菜单增加[2]自定义角色制作
+RETURN 0
+
+;══════════════════════════════════════════════════════════
+;插件管理界面（从配置菜单 [10] 插件管理 进入）
+;══════════════════════════════════════════════════════════
+@PLUGIN_MANAGER
+#DIM LOCAL_BEFORE
+#DIM LOCAL_LINE
+#DIM LOCAL_COLOR
+#DIM LOCAL_ENABLED
+#DIM LOCAL_I
+#DIM LOCAL_IN
+#DIM LOCAL_ORDER
+#DIM LOCAL_SLOT
+LOCAL_BEFORE = RESULT
+LOCAL_LINE = LINECOUNT
+LOCAL_COLOR = GETCOLOR()
+CALL PLUGIN_INIT
+DO
+	CLEARLINE LINECOUNT - LOCAL_LINE
+	;统计已登记插件数与已开启数
+	LOCAL_ORDER = 0
+	LOCAL_ENABLED = 0
+	FOR LOCAL_I, 0, 32
+		SIF PLUGIN_ID:(LOCAL_I) == ""
+			CONTINUE
+		LOCAL_ORDER++
+		SIF GLOBAL:(100 + LOCAL_I)
+			LOCAL_ENABLED++
+	NEXT
+	PRINTL ──── 插件管理 ────
+	IF LOCAL_ORDER == 0
+		PRINTL （暂无已登记的插件）
+		PRINTL 在 PLUGIN_MANAGER.ERB 的 @PLUGIN_INIT 注册表中登记插件后，可在此独立开关
+	ELSE
+		PRINTFORML 已开启 {LOCAL_ENABLED}/{LOCAL_ORDER} 个插件
+		LOCAL_ORDER = 0
+		FOR LOCAL_I, 0, 32
+			SIF PLUGIN_ID:(LOCAL_I) == ""
+				CONTINUE
+			LOCAL_ORDER++
+			IF GLOBAL:(100 + LOCAL_I)
+				;已启用：插件名正常色 + [开启]，简介灰色，整行可点击
+				SETCOLOR 0x70C070
+				PRINTBUTTON @"[{LOCAL_ORDER}] %PLUGIN_NAME:(LOCAL_I)%　—　[开启]", LOCAL_ORDER
+				SETCOLOR LOCAL_COLOR
+				PRINTL 
+				SETCOLOR 0x969696
+				PRINTFORML 　　%PLUGIN_DESC:(LOCAL_I)%
+				SETCOLOR LOCAL_COLOR
+			ELSE
+				;未启用：插件名稍亮灰 + [关闭]，简介灰（更深），整行可点击
+				SETCOLOR 0xB0B0B0
+				PRINTBUTTON @"[{LOCAL_ORDER}] %PLUGIN_NAME:(LOCAL_I)%　—　[关闭]", LOCAL_ORDER
+				SETCOLOR LOCAL_COLOR
+				PRINTL 
+				SETCOLOR 0x969696
+				PRINTFORML 　　%PLUGIN_DESC:(LOCAL_I)%
+				SETCOLOR LOCAL_COLOR
+			ENDIF
+		NEXT
+	ENDIF
+	PRINTBUTTON "[99] 返回配置", 99
+	PRINTL 
+	INPUT
+	LOCAL_IN = RESULT
+	IF LOCAL_IN == 99 || LOCAL_IN == 0
+		LOCAL_IN = 99
+	ELSE
+		;把输入序号映射为注册表槽位（第 LOCAL_IN 个非空槽）
+		LOCAL_SLOT = -1
+		LOCAL_ORDER = 0
+		FOR LOCAL_I, 0, 32
+			SIF PLUGIN_ID:(LOCAL_I) == ""
+				CONTINUE
+			LOCAL_ORDER++
+			IF LOCAL_ORDER == LOCAL_IN
+				LOCAL_SLOT = LOCAL_I
+				BREAK
+			ENDIF
+		NEXT
+		IF LOCAL_SLOT >= 0
+			GLOBAL:(100 + LOCAL_SLOT) ^= 1
+			SAVEGLOBAL
+		ELSE
+			CLEARLINE 1
+			REUSELASTLINE 输入值超出范围
+		ENDIF
+	ENDIF
+LOOP LOCAL_IN != 99
+SETCOLOR LOCAL_COLOR
+RETURN LOCAL_BEFORE
+
+;══════════════════════════════════════════════════════════
+;事件钩子分发
+;  主流程调用：CALL PLUGIN_HOOK("事件名")
+;  对每个已开启的插件调用：@PLUGIN_<插件ID>_<事件名>
+;══════════════════════════════════════════════════════════
+@PLUGIN_HOOK(ARGS)
+#DIM LOCAL_I
+#DIMS LOCAL_ID
+CALL PLUGIN_INIT
+FOR LOCAL_I, 0, 32
+	SIF PLUGIN_ID:(LOCAL_I) == ""
+		CONTINUE
+	SIF GLOBAL:(100 + LOCAL_I) == 0
+		CONTINUE
+	;字符串数组元素先拷到简单局部变量（本体先例：LOCALS = %NAME:ARG%）
+	;注意：注册表赋值必须无引号，否则此值会带引号导致函数名拼接失败
+	LOCAL_ID = %PLUGIN_ID:(LOCAL_I)%
+	;把插件ID作为参数传给分发函数（TRYCALLFORM只展开参数%ARGS%，不展开普通变量）
+	CALL PLUGIN_HOOK_DISPATCH(LOCAL_ID, ARGS)
+NEXT
+RETURN 0
+
+;══════════════════════════════════════════════════════════
+;插件分发函数（TRYCALLFORM 仅支持参数 %ARGS% 展开，故经此中转）
+;  ARGS    = 插件ID
+;  ARGS:1  = 事件名
+;══════════════════════════════════════════════════════════
+@PLUGIN_HOOK_DISPATCH(ARGS, ARGS:1)
+TRYCALLFORM PLUGIN_%ARGS%_%ARGS:1%
+RETURN 0

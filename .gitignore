@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# 游戏运行时数据
+sav/
+*.log
+
+# 本地备份
+backup/
+*.bak
