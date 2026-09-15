@@ -95,6 +95,23 @@ TOOLS = [
         },
     },
     {
+        "name": "emuera_residue",
+        "description": (
+            "检查（或清理）游戏目录里的探针残留。"
+            "探针进程若被强杀，finally 没跑到，就会在 @SYSTEM_TITLE/@EVENTFIRST 等处"
+            "留下 PRINTL/OUTPUTLOG 残留，污染后续所有静态分析与正常游玩。"
+            "action=check 只报告；action=clean 清除后返回清理列表。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "game": {"type": "string"},
+                "action": {"type": "string", "enum": ["check", "clean"], "description": "默认 check"},
+            },
+            "required": ["game"],
+        },
+    },
+    {
         "name": "emuera_doctor",
         "description": "环境自检：可执行文件、emuera.config 关键项、插件系统是否就位、emuera.log 是否存在。",
         "inputSchema": {
@@ -152,6 +169,13 @@ def handle(name, args):
         return {"error": "缺少参数 game"}
     if not os.path.isdir(os.path.join(game, "ERB")):
         return {"error": "不是游戏目录（无 ERB/）：%s" % game}
+
+    if name == "emuera_residue":
+        if args.get("action") == "clean":
+            cleaned = C.clean_residue(game)
+            return {"cleaned": cleaned, "count": len(cleaned)}
+        found = C.find_residue(game)
+        return {"residue": found, "count": len(found), "clean": len(found) == 0}
 
     if name == "emuera_doctor":
         return _doctor(game)

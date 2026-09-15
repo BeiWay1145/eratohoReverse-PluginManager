@@ -160,6 +160,65 @@ def run(game, seconds=25, marker=None, max_wait=None):
     return True, "已运行 %ds" % seconds
 
 
+PROBE_MARKERS = ("ZZDRV_FIRED_", "ZZDRV_PROBE_MARK", "ZZDRV_GATE_BYPASS", "zzdriver_probe")
+
+
+def find_residue(game):
+    """扫描游戏目录里是否有探针残留（防止 runner 中途被打断留下脏文件）。
+
+    本项目实际踩过：探针进程被强杀时 finally 没跑到，@SYSTEM_TITLE / @EVENTFIRST
+    里留下了 PRINTL / OUTPUTLOG 残留，污染了后续所有静态分析。
+    """
+    hits = []
+    for dp, _d, fs in os.walk(os.path.join(game, "ERB")):
+        for fn in fs:
+            if not fn.lower().endswith((".erb", ".erh")):
+                continue
+            p = os.path.join(dp, fn)
+            try:
+                t = open(p, "rb").read().decode("utf-8-sig", errors="replace")
+            except Exception:
+                continue
+            found = [m for m in PROBE_MARKERS if m in t]
+            if found:
+                hits.append({"file": os.path.relpath(p, game).replace("\\", "/"), "markers": found})
+    d = os.path.join(game, PROBE_REL_DIR)
+    if os.path.isdir(d):
+        hits.append({"file": PROBE_REL_DIR.replace("\\", "/"), "markers": ["<probe dir still exists>"]})
+    return hits
+
+
+def clean_residue(game):
+    """清除探针残留，返回清理项列表。"""
+    cleaned = []
+    for dp, _d, fs in os.walk(os.path.join(game, "ERB")):
+        for fn in fs:
+            if not fn.lower().endswith((".erb", ".erh")):
+                continue
+            p = os.path.join(dp, fn)
+            try:
+                raw = open(p, "rb").read()
+                bom = raw.startswith(BOM)
+                t = raw.decode("utf-8-sig")
+            except Exception:
+                continue
+            lines = t.split("\r\n")
+            keep, removed = [], 0
+            for l in lines:
+                if any(m in l for m in PROBE_MARKERS) or l.strip() == "OUTPUTLOG":
+                    removed += 1
+                    continue
+                keep.append(l)
+            if removed:
+                _write(p, "\r\n".join(keep), bom)
+                cleaned.append(os.path.relpath(p, game).replace("\\", "/"))
+    d = os.path.join(game, PROBE_REL_DIR)
+    if os.path.isdir(d):
+        shutil.rmtree(d, ignore_errors=True)
+        cleaned.append(PROBE_REL_DIR.replace("\\", "/"))
+    return cleaned
+
+
 def read_log(game):
     """读 emuera.log（UTF-16LE）。"""
     p = os.path.join(game, "emuera.log")
